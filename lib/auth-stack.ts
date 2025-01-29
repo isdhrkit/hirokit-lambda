@@ -46,5 +46,19 @@ export class AuthStack extends cdk.Stack {
             }
         });
         auth.addMethod('POST', new apigateway.LambdaIntegration(authFunction));
+
+        // 認証チェック用のエンドポイントを追加
+        const check = auth.addResource('check');
+        check.addMethod('GET', new apigateway.LambdaIntegration(authFunction), {
+            methodResponses: [
+                {
+                    statusCode: '200',
+                    responseParameters: {
+                        'method.response.header.Access-Control-Allow-Origin': true,
+                        'method.response.header.Access-Control-Allow-Credentials': true,
+                    }
+                }
+            ]
+        });
     }
 } 

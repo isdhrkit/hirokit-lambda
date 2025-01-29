@@ -66,6 +66,35 @@ function hashPassword(password: string): string {
         .digest('hex');
 }
 
+// CloudFrontの署名付きクッキーを検証する関数
+function validateSignedCookie(cookies: Record<string, string>): boolean {
+    // 必要なクッキーが全て存在するか確認
+    const requiredCookies = [
+        'CloudFront-Policy',
+        'CloudFront-Signature',
+        'CloudFront-Key-Pair-Id'
+    ];
+
+    const hasCookies = requiredCookies.every(cookieName => {
+        return cookies[cookieName] !== undefined;
+    });
+
+    if (!hasCookies) {
+        return false;
+    }
+
+    // ポリシーの有効期限をチェック
+    try {
+        const policy = JSON.parse(
+            Buffer.from(cookies['CloudFront-Policy'], 'base64').toString()
+        );
+        const expireTime = policy.Statement[0].Condition.DateLessThan['AWS:EpochTime'];
+        return Date.now() / 1000 < expireTime;
+    } catch {
+        return false;
+    }
+}
+
 export const handler = async (
     event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
@@ -75,6 +104,36 @@ export const handler = async (
             statusCode: 200,
             headers: CORS_HEADERS,
             body: ''
+        };
+    }
+
+    // 認証チェックエンドポイントの処理を追加
+    if (event.resource === '/auth/check') {
+        const cookies = event.headers?.cookie?.split(';')
+            .reduce((acc: Record<string, string>, cookie) => {
+                const [key, value] = cookie.trim().split('=');
+                acc[key] = value;
+                return acc;
+            }, {}) || {};
+
+        if (validateSignedCookie(cookies)) {
+            return {
+                statusCode: 200,
+                headers: CORS_HEADERS,
+                body: JSON.stringify({ 
+                    authenticated: true,
+                    message: 'Valid authentication' 
+                })
+            };
+        }
+
+        return {
+            statusCode: 401,
+            headers: CORS_HEADERS,
+            body: JSON.stringify({ 
+                authenticated: false,
+                message: 'Not authenticated' 
+            })
         };
     }
 

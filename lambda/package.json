@@ -4,15 +4,21 @@
   "description": "Chat API Lambda function with CDK",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc && node esbuild.config.js",
     "cdk": "cdk",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "predeploy": "npm run build",
+    "deploy": "cd .. && npm run deploy",
+    "prediff": "npm run build",
+    "diff": "cd .. && npm run diff"
   },
   "dependencies": {
     "openai": "^4.24.1",
     "@aws-sdk/client-ssm": "^3.0.0",
-    "axios": "^1.6.2"
+    "axios": "^1.6.2",
+    "esbuild": "^0.19.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.119",

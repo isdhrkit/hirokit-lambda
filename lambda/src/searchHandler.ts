@@ -4,38 +4,41 @@ import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
 import axios from 'axios';
 
 const ssm = new SSMClient({});
+const ssmParameters = {
+    openaiApiKey: null as string | null,
+    googleApiKey: null as string | null,
+    googleSearchEngineId: null as string | null
+};
 let openai: OpenAI | null = null;
-let googleApiKey: string | null = null;
-let googleSearchEngineId: string | null = null;
 
 async function initializeOpenAI() {
     if (!openai) {
-        const parameterName = process.env.OPENAI_API_KEY_PARAMETER_NAME;
-        if (!parameterName) {
-            throw new Error('OPENAI_API_KEY_PARAMETER_NAME is not set');
-        }
+        if (!ssmParameters.openaiApiKey) {
+            const parameterName = process.env.OPENAI_API_KEY_PARAMETER_NAME;
+            if (!parameterName) {
+                throw new Error('OPENAI_API_KEY_PARAMETER_NAME is not set');
+            }
 
-        const command = new GetParameterCommand({
-            Name: parameterName,
-            WithDecryption: true
-        });
-
-        const response = await ssm.send(command);
-        const apiKey = response.Parameter?.Value;
-        
-        if (!apiKey) {
-            throw new Error('Failed to get OpenAI API key from SSM');
+            const response = await ssm.send(new GetParameterCommand({
+                Name: parameterName,
+                WithDecryption: true
+            }));
+            ssmParameters.openaiApiKey = response.Parameter?.Value ?? null;
+            
+            if (!ssmParameters.openaiApiKey) {
+                throw new Error('Failed to get OpenAI API key from SSM');
+            }
         }
 
         openai = new OpenAI({
-            apiKey: apiKey
+            apiKey: ssmParameters.openaiApiKey
         });
     }
     return openai;
 }
 
 async function initializeGoogleCredentials() {
-    if (!googleApiKey || !googleSearchEngineId) {
+    if (!ssmParameters.googleApiKey || !ssmParameters.googleSearchEngineId) {
         const apiKeyParamName = process.env.GOOGLE_API_KEY_PARAMETER_NAME;
         const searchEngineIdParamName = process.env.GOOGLE_SEARCH_ENGINE_ID_PARAMETER_NAME;
 
@@ -54,14 +57,17 @@ async function initializeGoogleCredentials() {
             }))
         ]);
 
-        googleApiKey = apiKeyResponse.Parameter?.Value ?? null;
-        googleSearchEngineId = searchEngineIdResponse.Parameter?.Value ?? null;
+        ssmParameters.googleApiKey = apiKeyResponse.Parameter?.Value ?? null;
+        ssmParameters.googleSearchEngineId = searchEngineIdResponse.Parameter?.Value ?? null;
 
-        if (!googleApiKey || !googleSearchEngineId) {
+        if (!ssmParameters.googleApiKey || !ssmParameters.googleSearchEngineId) {
             throw new Error('Failed to get Google API credentials from SSM');
         }
     }
-    return { googleApiKey, googleSearchEngineId };
+    return {
+        googleApiKey: ssmParameters.googleApiKey,
+        googleSearchEngineId: ssmParameters.googleSearchEngineId
+    };
 }
 
 async function searchGoogle(query: string): Promise<any> {

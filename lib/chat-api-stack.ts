@@ -13,7 +13,7 @@ export class ChatApiStack extends cdk.Stack {
         // Lambda関数の作成
         const chatFunction = new nodejs.NodejsFunction(this, 'ChatFunction', {
             runtime: lambda.Runtime.NODEJS_18_X,
-            entry: path.join(__dirname, '../lambda/src/chatHandler.ts'),
+            entry: path.join(__dirname, '../lambda/dist/bundle/chatHandler.js'),
             handler: 'handler',
             environment: {
                 OPENAI_API_KEY_PARAMETER_NAME: '/chat-api/openai-api-key',
@@ -32,7 +32,7 @@ export class ChatApiStack extends cdk.Stack {
         // Google Search用のLambda関数
         const searchFunction = new nodejs.NodejsFunction(this, 'SearchFunction', {
             runtime: lambda.Runtime.NODEJS_18_X,
-            entry: path.join(__dirname, '../lambda/src/searchHandler.ts'),
+            entry: path.join(__dirname, '../lambda/dist/bundle/searchHandler.js'),
             handler: 'handler',
             environment: {
                 OPENAI_API_KEY_PARAMETER_NAME: '/chat-api/openai-api-key',

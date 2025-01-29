@@ -3,6 +3,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 import path = require('path');
 
@@ -26,7 +27,8 @@ export class ChatApiStack extends cdk.Stack {
                     actions: ['ssm:GetParameter'],
                     resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/chat-api/openai-api-key`]
                 })
-            ]
+            ],
+            logRetention: logs.RetentionDays.ONE_MONTH,
         });
 
         // API Gatewayの作成

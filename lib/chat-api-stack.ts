@@ -16,7 +16,7 @@ export class ChatApiStack extends cdk.Stack {
             entry: path.join(__dirname, '../lambda/src/chatHandler.ts'),
             handler: 'handler',
             environment: {
-                OPENAI_API_KEY_PARAMETER_NAME: '/chat-api/openai-api-key', // パラメータ名を環境変数として渡す
+                OPENAI_API_KEY_PARAMETER_NAME: '/chat-api/openai-api-key',
             },
             timeout: cdk.Duration.seconds(30),
             memorySize: 256,
@@ -25,6 +25,31 @@ export class ChatApiStack extends cdk.Stack {
                     effect: iam.Effect.ALLOW,
                     actions: ['ssm:GetParameter'],
                     resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/chat-api/openai-api-key`]
+                })
+            ]
+        });
+
+        // Google Search用のLambda関数
+        const searchFunction = new nodejs.NodejsFunction(this, 'SearchFunction', {
+            runtime: lambda.Runtime.NODEJS_18_X,
+            entry: path.join(__dirname, '../lambda/src/searchHandler.ts'),
+            handler: 'handler',
+            environment: {
+                OPENAI_API_KEY_PARAMETER_NAME: '/chat-api/openai-api-key',
+                GOOGLE_API_KEY_PARAMETER_NAME: '/chat-api/google-api-key',
+                GOOGLE_SEARCH_ENGINE_ID_PARAMETER_NAME: '/chat-api/google-search-engine-id',
+            },
+            timeout: cdk.Duration.seconds(30),
+            memorySize: 256,
+            initialPolicy: [
+                new iam.PolicyStatement({
+                    effect: iam.Effect.ALLOW,
+                    actions: ['ssm:GetParameter'],
+                    resources: [
+                        `arn:aws:ssm:${this.region}:${this.account}:parameter/chat-api/openai-api-key`,
+                        `arn:aws:ssm:${this.region}:${this.account}:parameter/chat-api/google-api-key`,
+                        `arn:aws:ssm:${this.region}:${this.account}:parameter/chat-api/google-search-engine-id`
+                    ]
                 })
             ]
         });
@@ -42,6 +67,10 @@ export class ChatApiStack extends cdk.Stack {
         // APIリソースとメソッドの作成
         const chat = api.root.addResource('chat');
         chat.addMethod('POST', new apigateway.LambdaIntegration(chatFunction));
+
+        // Google Search用のエンドポイント追加
+        const search = api.root.addResource('search');
+        search.addMethod('POST', new apigateway.LambdaIntegration(searchFunction));
 
         // 出力としてAPI URLを表示
         new cdk.CfnOutput(this, 'ApiUrl', {

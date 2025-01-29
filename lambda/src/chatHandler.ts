@@ -48,17 +48,17 @@ const createResponse = (statusCode: number, body: any) => ({
     body: JSON.stringify(body)
 });
 
+// 通常のチャット処理
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     try {
         if (!event.body) {
             return createResponse(400, { error: 'Request body is missing' });
         }
 
-        // OpenAIクライアントの初期化
         const client = await initializeOpenAI();
-
         const { messages } = JSON.parse(event.body) as { messages: ChatMessage[] };
 
+        // 単純なチャット完了
         const completion = await client.chat.completions.create({
             model: "gpt-4o-mini",
             messages: messages,
@@ -67,7 +67,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         return createResponse(200, {
             response: completion.choices[0].message.content
         });
-
     } catch (error) {
         if (error instanceof SyntaxError) {
             return createResponse(400, { error: 'Invalid JSON in request body' });

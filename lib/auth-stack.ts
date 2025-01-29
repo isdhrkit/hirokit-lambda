@@ -40,12 +40,26 @@ export class AuthStack extends cdk.Stack {
         const auth = props.api.root.addResource('auth', {
             defaultCorsPreflightOptions: {
                 allowOrigins: ['https://www.hirokit.jp'],
-                allowMethods: apigateway.Cors.ALL_METHODS,
-                allowHeaders: ['Content-Type'],
-                allowCredentials: true,  // 認証には必須
+                allowMethods: ['GET', 'POST', 'OPTIONS'],
+                allowHeaders: ['Content-Type', 'Authorization'],
+                allowCredentials: true,
+                statusCode: 200
             }
         });
-        auth.addMethod('POST', new apigateway.LambdaIntegration(authFunction));
+        auth.addMethod('POST', new apigateway.LambdaIntegration(authFunction), {
+            methodResponses: [
+                {
+                    statusCode: '200',
+                    responseParameters: {
+                        'method.response.header.Access-Control-Allow-Origin': true,
+                        'method.response.header.Access-Control-Allow-Headers': true,
+                        'method.response.header.Access-Control-Allow-Methods': true,
+                        'method.response.header.Access-Control-Allow-Credentials': true,
+                        'method.response.header.Set-Cookie': true
+                    }
+                }
+            ]
+        });
 
         // 認証チェック用のエンドポイントを追加
         const check = auth.addResource('check');
@@ -55,7 +69,10 @@ export class AuthStack extends cdk.Stack {
                     statusCode: '200',
                     responseParameters: {
                         'method.response.header.Access-Control-Allow-Origin': true,
+                        'method.response.header.Access-Control-Allow-Headers': true,
+                        'method.response.header.Access-Control-Allow-Methods': true,
                         'method.response.header.Access-Control-Allow-Credentials': true,
+                        
                     }
                 }
             ]

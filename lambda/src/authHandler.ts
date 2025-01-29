@@ -7,13 +7,13 @@ import * as crypto from 'crypto';
 
 const secretsManager = new SecretsManagerClient({});
 
-// レスポンスヘッダーを定数として定義
+// レスポンスヘッダーを定数として定義を修正
 const CORS_HEADERS = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': 'https://www.hirokit.jp',
-    'Access-Control-Allow-Methods': 'POST',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Credentials': 'true'
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',  // GETも追加
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
 } as const;
 
 interface AuthCredentials {
@@ -174,9 +174,8 @@ export const handler = async (
         // 認証チェック
         if (
             credentials.username === secretData.username && 
-            hashPassword(credentials.password) === secretData.password  // パスワードをハッシュ化して比較
+            hashPassword(credentials.password) === secretData.password
         ) {
-            // 1時間有効な署名付きクッキーを生成
             const expireTime = Math.floor(Date.now() / 1000) + 1 * 60 * 60;
             const signedCookie = generateSignedCookie(
                 privateKey,
@@ -184,13 +183,20 @@ export const handler = async (
                 expireTime
             );
 
+            // クッキーの設定を修正
+            const cookieHeaders = Object.entries(signedCookie).reduce((acc, [key, value]) => ({
+                ...acc,
+                [`Set-Cookie`]: [
+                    ...(acc['Set-Cookie'] || []),
+                    `${key}=${value}; Path=/; Domain=hirokit.jp; Secure; HttpOnly; SameSite=None`
+                ]
+            }), {} as Record<string, string[]>);
+
             return {
                 statusCode: 200,
                 headers: {
                     ...CORS_HEADERS,
-                    'Set-Cookie': Object.entries(signedCookie).map(([key, value]) =>
-                        `${key}=${value}; Path=/; Secure; HttpOnly; SameSite=None`
-                    ).join('; ')
+                    ...cookieHeaders
                 },
                 body: JSON.stringify({ 
                     message: 'Authentication successful',

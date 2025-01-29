@@ -1,5 +1,4 @@
 import { handler } from './chatHandler';
-import OpenAI from 'openai';
 
 jest.mock('openai', () => ({
   default: function() {

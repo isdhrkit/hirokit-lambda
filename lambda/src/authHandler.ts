@@ -23,7 +23,7 @@ interface AuthCredentials {
 
 interface SecretData {
     username: string;
-    password: string;
+    password: string;  // ここに保存されているパスワードはハッシュ化済み
 }
 
 // CloudFront署名付きクッキーを生成する関数
@@ -55,6 +55,15 @@ function generateSignedCookie(
         'CloudFront-Signature': signature,
         'CloudFront-Key-Pair-Id': keyPairId
     };
+}
+
+// パスワードをハッシュ化する関数を追加
+function hashPassword(password: string): string {
+    console.log(crypto.createHash('sha256').update(password).digest('hex'));
+    return crypto
+        .createHash('sha256')
+        .update(password)
+        .digest('hex');
 }
 
 export const handler = async (
@@ -106,7 +115,7 @@ export const handler = async (
         // 認証チェック
         if (
             credentials.username === secretData.username && 
-            credentials.password === secretData.password
+            hashPassword(credentials.password) === secretData.password  // パスワードをハッシュ化して比較
         ) {
             // 1時間有効な署名付きクッキーを生成
             const expireTime = Math.floor(Date.now() / 1000) + 1 * 60 * 60;

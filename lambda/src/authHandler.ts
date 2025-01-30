@@ -73,13 +73,30 @@ function validateSignedCookie(cookies: Record<string, string>): boolean {
 
     // ポリシーの有効期限をチェック
     try {
-        const policy = JSON.parse(
-            Buffer.from(cookies['CloudFront-Policy'], 'base64').toString()
-        );
-        const expireTime = policy.Statement[0].Condition.DateLessThan['AWS:EpochTime'];
 
+        // base64デコードを試行
+        let decodedPolicy: string;
+        try {
+            decodedPolicy = Buffer.from(cookies['CloudFront-Policy'], 'base64').toString('utf-8');
+            // 不正な文字を除去し、文字列を正規化
+            decodedPolicy = decodedPolicy.replace(/[\uFFFD\u0000-\u001F\u007F-\u009F]/g, '').trim();
+        } catch (decodeError) {
+            return false;
+        }
+
+        // JSONパースを試行
+        let policy: any;
+        try {
+            policy = JSON.parse(decodedPolicy);
+        } catch (parseError) {
+            return false;
+        }
+
+        const expireTime = policy.Statement[0].Condition.DateLessThan['AWS:EpochTime'];
         return Date.now() / 1000 < expireTime;
-    } catch {
+
+    } catch (error) {
+        console.error('Validation error:', error);
         return false;
     }
 }

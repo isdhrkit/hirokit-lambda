@@ -60,7 +60,7 @@ function validateSignedCookie(cookies: Record<string, string>): boolean {
     const requiredCookies = [
         'CloudFront-Policy',
         'CloudFront-Signature',
-        'CloudFront-Key-Pair-ID'
+        'CloudFront-Key-Pair-Id'
     ];
 
     const hasCookies = requiredCookies.every(cookieName => {
@@ -77,6 +77,7 @@ function validateSignedCookie(cookies: Record<string, string>): boolean {
             Buffer.from(cookies['CloudFront-Policy'], 'base64').toString()
         );
         const expireTime = policy.Statement[0].Condition.DateLessThan['AWS:EpochTime'];
+
         return Date.now() / 1000 < expireTime;
     } catch {
         return false;
@@ -97,7 +98,7 @@ export const handler = async (
 
     // 認証チェックエンドポイントの処理を追加
     if (event.resource === '/auth/check') {
-        const cookies = event.headers?.cookie?.split(';')
+        const cookies = event.headers?.Cookie?.split(';')
             .reduce((acc: Record<string, string>, cookie) => {
                 const [key, value] = cookie.trim().split('=');
                 acc[key] = value;

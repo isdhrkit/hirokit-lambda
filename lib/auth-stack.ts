@@ -17,7 +17,7 @@ export class AuthStack extends cdk.Stack {
             entry: path.join(__dirname, '../lambda/dist/bundle/authHandler.js'),
             handler: 'handler',
             environment: {
-                CLOUDFRONT_KEY_GROUP_ID: '9929ebc3-c285-4823-b72d-45db48af1a49',
+                CLOUDFRONT_KEY_GROUP_ID: 'K2GZFSZJH0DU7K',
                 AUTH_SECRET_NAME: 'cloudfront/hirokit/secret',
                 PRIVATE_KEY_SECRET_NAME: 'cloudfront/hirokit/secret/private_key'
             },

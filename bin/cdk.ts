@@ -7,22 +7,31 @@ import { ApiGatewayStack } from '../lib/api-gateway-stack';
 
 const app = new cdk.App();
 
+// メインリージョンの環境設定
 const env = {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION
 };
 
-// API Gatewayスタックを作成
-const apiGatewayStack = new ApiGatewayStack(app, 'ApiGatewayStack', { env });
+// us-east-1の環境設定
+const usEast1Env = {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: 'us-east-1'
+};
 
-// ChatApiStackにAPIを渡す
-new ChatApiStack(app, 'ChatApiStack', { 
-    env,
-    api: apiGatewayStack.api 
+// API Gatewayスタックを作成（証明書はus-east-1に作成）
+const apiGatewayStack = new ApiGatewayStack(app, 'ApiGatewayStack', { 
+    env: usEast1Env,
+    crossRegionReferences: true
 });
 
-// AuthStackにAPIを渡す
+// Lambda関数を含むスタックもus-east-1に作成
+new ChatApiStack(app, 'ChatApiStack', { 
+    env: usEast1Env,
+    api: apiGatewayStack.api
+});
+
 new AuthStack(app, 'AuthStack', { 
-    env,
+    env: usEast1Env,
     api: apiGatewayStack.api 
 }); 

@@ -1,0 +1,10 @@
+{
+  "hosted-zone:account=961341548206:domainName=hirokit.jp:region=ap-northeast-1": {
+    "Id": "/hostedzone/Z0036263EWS46U25HYR7",
+    "Name": "hirokit.jp."
+  },
+  "hosted-zone:account=961341548206:domainName=hirokit.jp:region=us-east-1": {
+    "Id": "/hostedzone/Z0036263EWS46U25HYR7",
+    "Name": "hirokit.jp."
+  }
+}

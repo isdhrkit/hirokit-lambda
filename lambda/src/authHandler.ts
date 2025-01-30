@@ -4,6 +4,7 @@ import {
     GetSecretValueCommand 
 } from '@aws-sdk/client-secrets-manager';
 import * as crypto from 'crypto';
+import * as awsCloudFrontSign from 'aws-cloudfront-sign';
 
 const secretsManager = new SecretsManagerClient({});
 
@@ -32,29 +33,16 @@ function generateSignedCookie(
     keyPairId: string,
     expireTime: number
 ): Record<string, string> {
-    const policy = {
-        Statement: [{
-            Resource: '*',
-            Condition: {
-                DateLessThan: {
-                    'AWS:EpochTime': expireTime
-                }
-            }
-        }]
+    const options = {
+        keypairId: keyPairId,
+        privateKeyString: privateKey,
+        expireTime: expireTime * 1000
     };
 
-    const policyString = JSON.stringify(policy);
-    const encodedPolicy = Buffer.from(policyString).toString('base64');
-    
-    const signer = crypto.createSign('RSA-SHA1');
-    signer.update(policyString);
-    const signature = signer.sign(privateKey, 'base64');
-
-    return {
-        'CloudFront-Policy': encodedPolicy,
-        'CloudFront-Signature': signature,
-        'CloudFront-Key-Pair-Id': keyPairId
-    };
+    return awsCloudFrontSign.getSignedCookies(
+        '*.hirokit.jp/*',  // パスを/*に変更
+        options
+    );
 }
 
 // パスワードをハッシュ化する関数を追加
@@ -72,7 +60,7 @@ function validateSignedCookie(cookies: Record<string, string>): boolean {
     const requiredCookies = [
         'CloudFront-Policy',
         'CloudFront-Signature',
-        'CloudFront-Key-Pair-Id'
+        'CloudFront-Key-Pair-ID'
     ];
 
     const hasCookies = requiredCookies.every(cookieName => {
@@ -184,19 +172,23 @@ export const handler = async (
             );
 
             // クッキーの設定を修正
-            const cookieHeaders = Object.entries(signedCookie).reduce((acc, [key, value]) => ({
-                ...acc,
-                [`Set-Cookie`]: [
-                    ...(acc['Set-Cookie'] || []),
-                    `${key}=${value}; Path=/; Domain=hirokit.jp; Secure; HttpOnly; SameSite=None`
-                ]
-            }), {} as Record<string, string[]>);
+            const cookieHeaders = Object.entries(signedCookie).map(
+                ([key, value]) =>
+                    `${key}=${value}; Path=/; Domain=.hirokit.jp; Secure; HttpOnly`
+            );
+
+            console.log({
+                ...CORS_HEADERS,
+                'Set-Cookie': cookieHeaders
+            });
 
             return {
                 statusCode: 200,
                 headers: {
-                    ...CORS_HEADERS,
-                    ...cookieHeaders
+                    ...CORS_HEADERS
+                },
+                multiValueHeaders: {
+                    'Set-Cookie': cookieHeaders
                 },
                 body: JSON.stringify({ 
                     message: 'Authentication successful',

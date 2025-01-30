@@ -10,28 +10,22 @@ const app = new cdk.App();
 // メインリージョンの環境設定
 const env = {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION
+    region: 'ap-northeast-1'
 };
 
-// us-east-1の環境設定
-const usEast1Env = {
-    account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: 'us-east-1'
-};
-
-// API Gatewayスタックを作成（証明書はus-east-1に作成）
+// API Gatewayスタックを作成（ap-northeast-1に変更）
 const apiGatewayStack = new ApiGatewayStack(app, 'ApiGatewayStack', { 
-    env: usEast1Env,
+    env: env,
     crossRegionReferences: true
 });
 
-// Lambda関数を含むスタックもus-east-1に作成
+// Lambda関数を含むスタックもap-northeast-1に作成
 new ChatApiStack(app, 'ChatApiStack', { 
-    env: usEast1Env,
+    env: env,
     api: apiGatewayStack.api
 });
 
 new AuthStack(app, 'AuthStack', { 
-    env: usEast1Env,
+    env: env,
     api: apiGatewayStack.api 
 }); 

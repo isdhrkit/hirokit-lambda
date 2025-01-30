@@ -16,7 +16,7 @@ export class ApiGatewayStack extends cdk.Stack {
             domainName: 'hirokit.jp'
         });
 
-        // us-east-1リージョンでACM証明書を作成
+        // ap-northeast-1でACM証明書を作成
         const certificate = new acm.Certificate(this, 'ApiCertificate', {
             domainName: 'api.hirokit.jp',
             validation: acm.CertificateValidation.fromDns(hostedZone)
@@ -33,7 +33,7 @@ export class ApiGatewayStack extends cdk.Stack {
             domainName: {
                 domainName: 'api.hirokit.jp',
                 certificate: certificate,
-                endpointType: apigateway.EndpointType.EDGE
+                endpointType: apigateway.EndpointType.REGIONAL
             }
         });
 

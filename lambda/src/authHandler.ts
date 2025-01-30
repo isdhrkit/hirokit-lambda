@@ -6,7 +6,9 @@ import {
 import * as crypto from 'crypto';
 import * as awsCloudFrontSign from 'aws-cloudfront-sign';
 
-const secretsManager = new SecretsManagerClient({});
+const secretsManager = new SecretsManagerClient({
+    maxAttempts: 3 // リトライ回数を制限
+});
 
 // レスポンスヘッダーを定数として定義を修正
 const CORS_HEADERS = {
@@ -27,6 +29,64 @@ interface SecretData {
     password: string;  // ここに保存されているパスワードはハッシュ化済み
 }
 
+// シークレットのキャッシュ
+let secretDataCache: SecretData | null = null;
+let privateKeyCache: string | null = null;
+let keyPairIdCache: string | null = null;
+
+// シークレットを取得する関数を最適化
+async function getSecrets(): Promise<{
+    secretData: SecretData;
+    privateKey: string;
+    keyPairId: string;
+}> {
+    if (secretDataCache && privateKeyCache && keyPairIdCache) {
+        return {
+            secretData: secretDataCache,
+            privateKey: privateKeyCache,
+            keyPairId: keyPairIdCache
+        };
+    }
+
+    const [secretResponse, privateKeyResponse] = await Promise.all([
+        secretsManager.send(new GetSecretValueCommand({
+            SecretId: process.env.AUTH_SECRET_NAME
+        })),
+        secretsManager.send(new GetSecretValueCommand({
+            SecretId: process.env.PRIVATE_KEY_SECRET_NAME
+        }))
+    ]);
+
+    secretDataCache = JSON.parse(secretResponse.SecretString || '{}');
+    privateKeyCache = privateKeyResponse.SecretString || '';
+    keyPairIdCache = process.env.CLOUDFRONT_KEY_GROUP_ID || null;
+
+    if (!secretDataCache || !privateKeyCache || !keyPairIdCache) {
+        throw new Error('Required secrets not found');
+    }
+
+    return {
+        secretData: secretDataCache,
+        privateKey: privateKeyCache,
+        keyPairId: keyPairIdCache
+    };
+}
+
+// パスワードハッシュのメモ化
+const hashPasswordMemo = new Map<string, string>();
+function hashPassword(password: string): string {
+    const cached = hashPasswordMemo.get(password);
+    if (cached) return cached;
+
+    const hash = crypto
+        .createHash('sha256')
+        .update(password)
+        .digest('hex');
+    
+    hashPasswordMemo.set(password, hash);
+    return hash;
+}
+
 // CloudFront署名付きクッキーを生成する関数
 function generateSignedCookie(
     privateKey: string,
@@ -45,75 +105,55 @@ function generateSignedCookie(
     );
 }
 
-// パスワードをハッシュ化する関数を追加
-function hashPassword(password: string): string {
-    console.log(crypto.createHash('sha256').update(password).digest('hex'));
-    return crypto
-        .createHash('sha256')
-        .update(password)
-        .digest('hex');
-}
-
-// CloudFrontの署名付きクッキーを検証する関数
+// クッキー検証の最適化
 function validateSignedCookie(cookies: Record<string, string>): boolean {
-    // 必要なクッキーが全て存在するか確認
     const requiredCookies = [
         'CloudFront-Policy',
         'CloudFront-Signature',
         'CloudFront-Key-Pair-Id'
     ];
 
-    const hasCookies = requiredCookies.every(cookieName => {
-        return cookies[cookieName] !== undefined;
-    });
-
-    if (!hasCookies) {
+    // 早期リターン
+    if (!requiredCookies.every(cookieName => cookies[cookieName])) {
         return false;
     }
 
-    // ポリシーの有効期限をチェック
     try {
+        const decodedPolicy = Buffer.from(cookies['CloudFront-Policy'], 'base64')
+            .toString('utf-8')
+            .replace(/[\uFFFD\u0000-\u001F\u007F-\u009F]/g, '')
+            .trim();
 
-        // base64デコードを試行
-        let decodedPolicy: string;
-        try {
-            decodedPolicy = Buffer.from(cookies['CloudFront-Policy'], 'base64').toString('utf-8');
-            // 不正な文字を除去し、文字列を正規化
-            decodedPolicy = decodedPolicy.replace(/[\uFFFD\u0000-\u001F\u007F-\u009F]/g, '').trim();
-        } catch (decodeError) {
-            return false;
-        }
-
-        // JSONパースを試行
-        let policy: any;
-        try {
-            policy = JSON.parse(decodedPolicy);
-        } catch (parseError) {
-            return false;
-        }
-
+        const policy = JSON.parse(decodedPolicy);
         const expireTime = policy.Statement[0].Condition.DateLessThan['AWS:EpochTime'];
+        
         return Date.now() / 1000 < expireTime;
-
-    } catch (error) {
-        console.error('Validation error:', error);
+    } catch {
         return false;
     }
 }
 
+// レスポンス生成を最適化
+const createResponse = (
+    statusCode: number,
+    body: Record<string, unknown>,
+    cookies?: string[]
+): APIGatewayProxyResult => ({
+    statusCode,
+    headers: CORS_HEADERS,
+    ...(cookies && { multiValueHeaders: { 'Set-Cookie': cookies } }),
+    body: JSON.stringify(body)
+});
+
 export const handler = async (
     event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
-    // OPTIONSリクエストに対する処理を追加
+    // OPTIONSリクエストの早期リターン
     if (event.httpMethod === 'OPTIONS') {
-        return {
-            statusCode: 200,
-            headers: CORS_HEADERS,
-            body: ''
-        };
+        return createResponse(200, {});
     }
 
-    // 認証チェックエンドポイントの処理を追加
+    // 認証チェックエンドポイントの処理
     if (event.resource === '/auth/check') {
         const cookies = event.headers?.Cookie?.split(';')
             .reduce((acc: Record<string, string>, cookie) => {
@@ -122,64 +162,25 @@ export const handler = async (
                 return acc;
             }, {}) || {};
 
-        if (validateSignedCookie(cookies)) {
-            return {
-                statusCode: 200,
-                headers: CORS_HEADERS,
-                body: JSON.stringify({ 
-                    authenticated: true,
-                    message: 'Valid authentication' 
-                })
-            };
-        }
-
-        return {
-            statusCode: 401,
-            headers: CORS_HEADERS,
-            body: JSON.stringify({ 
-                authenticated: false,
-                message: 'Not authenticated' 
-            })
-        };
+        return createResponse(
+            validateSignedCookie(cookies) ? 200 : 401,
+            {
+                authenticated: validateSignedCookie(cookies),
+                message: validateSignedCookie(cookies) ? 'Valid authentication' : 'Not authenticated'
+            }
+        );
     }
 
     try {
         if (!event.body) {
-            return {
-                statusCode: 400,
-                headers: CORS_HEADERS,
-                body: JSON.stringify({ error: 'Request body is missing' })
-            };
+            return createResponse(400, { error: 'Request body is missing' });
         }
 
         const credentials: AuthCredentials = JSON.parse(event.body);
+        const { secretData, privateKey, keyPairId } = await getSecrets();
 
-        // 認証情報を取得
-        const secretResponse = await secretsManager.send(new GetSecretValueCommand({
-            SecretId: process.env.AUTH_SECRET_NAME
-        }));
-
-        const secretData: SecretData = JSON.parse(secretResponse.SecretString || '{}');
-
-        // プライベートキーを取得
-        const privateKeyResponse = await secretsManager.send(new GetSecretValueCommand({
-            SecretId: process.env.PRIVATE_KEY_SECRET_NAME
-        }));
-
-        const privateKey = privateKeyResponse.SecretString;
-        if (!privateKey) {
-            throw new Error('Private key not found');
-        }
-
-        // キーペアIDを環境変数から取得
-        const keyPairId = process.env.CLOUDFRONT_KEY_GROUP_ID;
-        if (!keyPairId) {
-            throw new Error('CLOUDFRONT_KEY_GROUP_ID is not set');
-        }
-
-        // 認証チェック
         if (
-            credentials.username === secretData.username && 
+            credentials.username === secretData.username &&
             hashPassword(credentials.password) === secretData.password
         ) {
             const expireTime = Math.floor(Date.now() / 1000) + 1 * 60 * 60;
@@ -189,44 +190,22 @@ export const handler = async (
                 expireTime
             );
 
-            // クッキーの設定を修正
             const cookieHeaders = Object.entries(signedCookie).map(
                 ([key, value]) =>
                     `${key}=${value}; Path=/; Domain=.hirokit.jp; Secure; HttpOnly`
             );
 
-            console.log({
-                ...CORS_HEADERS,
-                'Set-Cookie': cookieHeaders
-            });
-
-            return {
-                statusCode: 200,
-                headers: {
-                    ...CORS_HEADERS
-                },
-                multiValueHeaders: {
-                    'Set-Cookie': cookieHeaders
-                },
-                body: JSON.stringify({ 
-                    message: 'Authentication successful',
-                    expireTime
-                })
-            };
+            return createResponse(
+                200,
+                { message: 'Authentication successful', expireTime },
+                cookieHeaders
+            );
         }
 
-        return {
-            statusCode: 401,
-            headers: CORS_HEADERS,
-            body: JSON.stringify({ error: 'Invalid credentials' })
-        };
+        return createResponse(401, { error: 'Invalid credentials' });
 
     } catch (error) {
         console.error('Error:', error);
-        return {
-            statusCode: 500,
-            headers: CORS_HEADERS,
-            body: JSON.stringify({ error: 'Internal server error' })
-        };
+        return createResponse(500, { error: 'Internal server error' });
     }
 }; 

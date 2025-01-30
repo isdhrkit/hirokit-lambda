@@ -155,7 +155,7 @@ export const handler = async (
 
     // 認証チェックエンドポイントの処理
     if (event.resource === '/auth/check') {
-        const cookies = event.headers?.Cookie?.split(';')
+        const cookies = event.headers?.cookie?.split(';')
             .reduce((acc: Record<string, string>, cookie) => {
                 const [key, value] = cookie.trim().split('=');
                 acc[key] = value;

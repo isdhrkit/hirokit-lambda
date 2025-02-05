@@ -35,11 +35,11 @@ export class FeatureRequestStack extends cdk.Stack {
     });
 
     // API Gatewayにエンドポイントを追加
-    const featureRequests = props?.api.root.addResource('feature-requests', {
+    const featureRequests = props?.api.root.addResource('feature-request', {
       defaultCorsPreflightOptions: {
         allowOrigins: ['https://www.hirokit.jp'],
         allowMethods: ['POST', 'OPTIONS'],
-        allowHeaders: ['Content-Type'],
+        allowHeaders: ['Content-Type', 'Authorization'],
         allowCredentials: true,
       }
     });

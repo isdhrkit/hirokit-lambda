@@ -4,6 +4,7 @@ import * as cdk from 'aws-cdk-lib';
 import { ChatApiStack } from '../lib/chat-api-stack';
 import { AuthStack } from '../lib/auth-stack';
 import { ApiGatewayStack } from '../lib/api-gateway-stack';
+import { FeatureRequestStack } from '../lib/feature-request-stack';
 
 const app = new cdk.App();
 
@@ -26,6 +27,12 @@ new ChatApiStack(app, 'ChatApiStack', {
 });
 
 new AuthStack(app, 'AuthStack', { 
+    env: env,
+    api: apiGatewayStack.api 
+});
+
+// Feature Requestスタックを追加
+new FeatureRequestStack(app, 'FeatureRequestStack', { 
     env: env,
     api: apiGatewayStack.api 
 }); 

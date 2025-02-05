@@ -20,7 +20,10 @@
     "axios": "^1.6.2",
     "esbuild": "^0.19.0",
     "@aws-sdk/client-secrets-manager": "^3.0.0",
-    "aws-cloudfront-sign": "^3.0.1"
+    "aws-cloudfront-sign": "^3.0.1",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.119",
@@ -31,6 +34,7 @@
     "typescript": "^5.1.6",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.1",
-    "@types/jest": "^29.5.11"
+    "@types/jest": "^29.5.11",
+    "@types/uuid": "^9.0.0"
   }
 } 
